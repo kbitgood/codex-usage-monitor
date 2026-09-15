@@ -32,12 +32,6 @@ window.codexMonitor.onRefresh(() => {
   void refreshCredits();
 });
 
-document.querySelector("#connect-credits").addEventListener("click", async () => {
-  setCreditStatus("OPENING LOGIN…", true);
-  await window.codexMonitor.connectCredits();
-  scheduleCreditsRefresh(1_000);
-});
-
 async function refresh() {
   try {
     const snapshot = await window.codexMonitor.latest();
@@ -98,13 +92,13 @@ async function refreshCredits() {
     if (snapshot.status === "auth_required") {
       setCreditStatus("ADMIN LOGIN NEEDED");
     } else if (snapshot.status === "unavailable") {
-      setCreditStatus("CODEX LOGIN NOT FOUND", true);
+      setCreditStatus("CODEX LOGIN NOT FOUND");
     } else {
-      setCreditStatus("CREDITS UNAVAILABLE", true);
+      setCreditStatus("CREDITS UNAVAILABLE");
     }
     scheduleCreditsRefresh(5_000);
   } catch {
-    setCreditStatus("CREDITS UNAVAILABLE", true);
+    setCreditStatus("CREDITS UNAVAILABLE");
     scheduleCreditsRefresh(5_000);
   }
 }
@@ -183,11 +177,10 @@ function recentCreditDays(days) {
   return results;
 }
 
-function setCreditStatus(message, disableConnect = false) {
+function setCreditStatus(message) {
   const chart = document.querySelector("#credit-chart");
   const status = document.querySelector("#credit-status");
   document.querySelector("#credit-status-text").textContent = message;
-  document.querySelector("#connect-credits").hidden = disableConnect;
   document.querySelector("#credits-today").textContent = "-- today";
   chart.hidden = true;
   status.hidden = false;

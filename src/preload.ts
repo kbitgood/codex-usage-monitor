@@ -5,7 +5,6 @@ const { contextBridge, ipcRenderer } = electron;
 contextBridge.exposeInMainWorld("codexMonitor", {
   latest: (): Promise<MonitorSnapshot | undefined> => ipcRenderer.invoke("usage:latest"),
   latestCredits: (): Promise<CreditSnapshot> => ipcRenderer.invoke("credits:latest"),
-  connectCredits: (): Promise<void> => ipcRenderer.invoke("credits:connect"),
   hide: (): void => ipcRenderer.send("window:hide"),
   setCompact: (compact: boolean): void => ipcRenderer.send("window:set-compact", compact),
   onRefresh: (callback: () => void): void => {

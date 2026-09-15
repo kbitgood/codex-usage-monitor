@@ -68,13 +68,13 @@ The application reads the Codex login from `$CODEX_HOME/auth.json`, normally `~/
 
 ### Actual paid credits
 
-When the signed-in user can access credit analytics, click **Connect** and sign in through the separate Admin Console window. Electron keeps this login in a dedicated persistent browser session. The application does not extract or save browser cookies.
+Choose **Login with Admin Account** from the menu-bar menu to sign in through a separate Admin Console window. When that session can access credit analytics, the monitor uses the actual results. Electron keeps this login in a dedicated persistent browser session. The application does not extract or save browser cookies.
 
 The chart then displays actual paid Codex credits for the last seven days.
 
 ### Estimated credits
 
-Users without Admin Console access see the same chart under the title **Estimated Credits**. The estimate is intentionally biased high:
+When there is no active Admin Console login or the account cannot access credit analytics, the monitor automatically shows the same chart under the title **Estimated Credits**. The estimate is intentionally biased high:
 
 - Requests reported at 99% or 100% usage are included.
 - The full request that crosses the included limit is counted.

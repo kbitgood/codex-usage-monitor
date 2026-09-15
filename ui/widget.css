@@ -280,31 +280,6 @@ body.compact {
   display: none;
 }
 
-#connect-credits {
-  position: relative;
-  z-index: 4;
-  pointer-events: auto;
-  padding: 5px 8px 4px;
-  border: 1px solid rgba(201, 255, 74, 0.3);
-  border-radius: 5px;
-  color: var(--green);
-  background: rgba(201, 255, 74, 0.07);
-  font: 700 8px/1 "SFMono-Regular", Menlo, monospace;
-  letter-spacing: 0.1em;
-  cursor: default;
-  -webkit-app-region: no-drag;
-}
-
-#connect-credits:hover {
-  border-color: rgba(201, 255, 74, 0.55);
-  background: rgba(201, 255, 74, 0.12);
-}
-
-#connect-credits:focus-visible {
-  outline: 1px solid var(--green);
-  outline-offset: 2px;
-}
-
 .error .widget {
   border-color: rgba(255, 98, 98, 0.5);
 }

@@ -448,12 +448,21 @@ function updateTrayMenu(): void {
       ])
     : [{ label: "Usage unavailable", enabled: false }];
   const paidCredits = formatPaidCredits(creditSnapshot);
+  const adminLoginItems: Electron.MenuItemConstructorOptions[] = creditSnapshot?.adminStatus === "ready"
+    || creditSnapshot?.source === "admin"
+    ? []
+    : [{
+        label: "Login with Admin Account",
+        enabled: creditSnapshot?.status !== "unavailable",
+        click: () => void connectCredits(),
+      }];
   const startAtLogin = isStartAtLoginEnabled();
 
   tray.setContextMenu(Menu.buildFromTemplate([
     ...usageItems,
     { type: "separator" },
     { label: paidCredits, enabled: false },
+    ...adminLoginItems,
     { type: "separator" },
     {
       label: "Refresh now",
@@ -501,11 +510,12 @@ function usageMenuItems(name: string, limit: RateLimitWindow): Electron.MenuItem
 }
 
 function formatPaidCredits(snapshot?: CreditSnapshot): string {
-  if (!snapshot) return "Paid credits today: loading…";
-  if (snapshot.status !== "ready") return "Paid credits today: unavailable";
+  if (!snapshot) return "Credits today: loading…";
+  if (snapshot.status !== "ready") return "Credits today: unavailable";
   const today = new Date().toISOString().slice(0, 10);
   const credits = snapshot.days.find((day) => day.date === today)?.credits ?? 0;
-  return `Paid credits today: ${formatCreditAmount(credits)} cr · ${formatUsd(credits * creditPriceUsd)}`;
+  const label = snapshot.source === "estimate" ? "Estimated credits today" : "Paid credits today";
+  return `${label}: ${formatCreditAmount(credits)} cr · ${formatUsd(credits * creditPriceUsd)}`;
 }
 
 function formatCreditAmount(value: number): string {
@@ -614,7 +624,6 @@ function escapeXml(value: string): string {
 
 ipcMain.handle("usage:latest", () => getLatestUsage());
 ipcMain.handle("credits:latest", getLatestCredits);
-ipcMain.handle("credits:connect", connectCredits);
 ipcMain.on("window:hide", hideWindow);
 ipcMain.on("window:set-compact", (_event, compact: unknown) => {
   if (typeof compact === "boolean") setCompactWidget(compact);
