@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>Codex usage</title>
+    <link rel="stylesheet" href="./widget.css" />
+  </head>
+  <body>
+    <main class="widget" aria-label="Codex usage monitor">
+      <section class="limits" id="limits" aria-live="polite">
+        <article class="limit" data-window="primary">
+          <div class="limit-heading">
+            <span class="label">5 HOUR LEFT</span>
+            <strong class="percent">--%</strong>
+          </div>
+          <div class="track"><span class="fill"></span></div>
+          <div class="reset">
+            <span>RESET</span>
+            <time>waiting for Codex</time>
+          </div>
+        </article>
+
+        <article class="limit" data-window="secondary">
+          <div class="limit-heading">
+            <span class="label">WEEKLY LEFT</span>
+            <strong class="percent">--%</strong>
+          </div>
+          <div class="track"><span class="fill"></span></div>
+          <div class="reset">
+            <span>RESET</span>
+            <time>waiting for Codex</time>
+          </div>
+        </article>
+      </section>
+
+      <section class="credits" aria-live="polite">
+        <div class="credits-heading">
+          <span class="label" id="credits-label">PAID CODEX CREDITS</span>
+          <strong class="credits-today" id="credits-today">-- today</strong>
+        </div>
+        <div class="credit-chart" id="credit-chart" aria-label="Paid Codex credits for the last seven days"></div>
+        <div class="credit-status" id="credit-status" hidden>
+          <span id="credit-status-text">ADMIN LOGIN NEEDED</span>
+          <button id="connect-credits" type="button">CONNECT</button>
+        </div>
+      </section>
+      <button class="close" id="close" aria-label="Hide monitor">×</button>
+    </main>
+    <script src="./widget.js"></script>
+  </body>
+</html>

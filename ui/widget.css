@@ -1,0 +1,316 @@
+:root {
+  --widget-scale: 1;
+  color-scheme: dark;
+  --ink: #f3f1e8;
+  --muted: #86897f;
+  --line: rgba(255, 255, 255, 0.1);
+  --green: #c9ff4a;
+  --amber: #ffb84a;
+  --red: #ff6262;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+body {
+  width: 340px;
+  height: 274px;
+  margin: 0;
+  padding: 1px;
+  color: var(--ink);
+  font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+  transform: scale(var(--widget-scale));
+  transform-origin: top left;
+}
+
+body.compact {
+  height: 204px;
+}
+
+.widget {
+  position: relative;
+  display: grid;
+  grid-template-rows: 158px 1fr;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 82% -15%, rgba(201, 255, 74, 0.12), transparent 43%),
+    linear-gradient(145deg, rgba(30, 32, 29, 0.98), rgba(12, 13, 12, 0.985));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.compact .widget {
+  grid-template-rows: 88px 1fr;
+}
+
+.widget::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.09'/%3E%3C/svg%3E");
+  opacity: 0.18;
+  content: "";
+}
+
+.close {
+  position: absolute;
+  z-index: 3;
+  top: 5px;
+  right: 6px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0 0 2px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #9b9e95;
+  background: rgba(255, 255, 255, 0.07);
+  font: 17px/1 Georgia, serif;
+  opacity: 0;
+  cursor: default;
+  pointer-events: none;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.widget:hover .close,
+.close:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.close:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.close:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 1px;
+}
+
+.limits {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 10px 18px 9px;
+  -webkit-app-region: drag;
+}
+
+.limit-heading,
+.reset {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label {
+  color: #aaada4;
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.percent {
+  font-family: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+  font-size: 27px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.track {
+  height: 5px;
+  margin: 6px 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(201, 255, 74, 0.34);
+  transition: width 500ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms;
+}
+
+.reset {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.11em;
+}
+
+.reset time {
+  color: #d5d6cf;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.015em;
+}
+
+.credits {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  padding: 8px 18px 9px;
+  border-top: 1px solid var(--line);
+  -webkit-app-region: no-drag;
+}
+
+.credits-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  height: 20px;
+}
+
+.credits-today {
+  color: var(--green);
+  font-family: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+}
+
+.credit-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  height: 78px;
+  padding-top: 3px;
+}
+
+.credit-column {
+  display: grid;
+  grid-template-rows: 56px 14px;
+  min-width: 0;
+  outline: none;
+  cursor: help;
+}
+
+.credit-bar-shell {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  height: 54px;
+  padding-top: 4px;
+}
+
+.credit-bar {
+  display: block;
+  width: 15px;
+  min-height: 2px;
+  border-radius: 3px 3px 1px 1px;
+  background: rgba(201, 255, 74, 0.34);
+  transform-origin: bottom;
+  transition:
+    height 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 160ms,
+    box-shadow 160ms,
+    transform 160ms;
+}
+
+.credit-column:hover .credit-bar,
+.credit-column:focus-visible .credit-bar {
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(201, 255, 74, 0.26);
+  transform: translateY(-1px) scaleX(1.12);
+}
+
+.credit-column.today .credit-bar {
+  width: 18px;
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(201, 255, 74, 0.28);
+  transform: translateY(-1px) scaleX(1.12);
+}
+
+.credit-day {
+  color: #74786e;
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 14px;
+  text-align: center;
+}
+
+.credit-column.today .credit-day {
+  color: var(--ink);
+}
+
+.credit-column:hover .credit-day,
+.credit-column:focus-visible .credit-day {
+  color: var(--ink);
+}
+
+.credit-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 74px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+}
+
+.credit-status[hidden],
+.credit-chart[hidden] {
+  display: none;
+}
+
+#connect-credits {
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+  padding: 5px 8px 4px;
+  border: 1px solid rgba(201, 255, 74, 0.3);
+  border-radius: 5px;
+  color: var(--green);
+  background: rgba(201, 255, 74, 0.07);
+  font: 700 8px/1 "SFMono-Regular", Menlo, monospace;
+  letter-spacing: 0.1em;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+#connect-credits:hover {
+  border-color: rgba(201, 255, 74, 0.55);
+  background: rgba(201, 255, 74, 0.12);
+}
+
+#connect-credits:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 2px;
+}
+
+.error .widget {
+  border-color: rgba(255, 98, 98, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close { transition: none; }
+  .fill { transition: none; }
+  .credit-bar { transition: none; }
+}
