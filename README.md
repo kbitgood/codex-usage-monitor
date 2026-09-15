@@ -9,6 +9,16 @@ The widget shows:
 - Seven days of actual paid Codex credits when Admin Console access is available
 - A deliberately high local estimate when actual credit data is unavailable
 
+## Preview
+
+The widget uses the same layout for actual and estimated credits. This example uses dummy data.
+
+![Codex Usage Monitor widget showing dummy usage limits and estimated credits](assets/screenshots/widget-demo.png)
+
+The menu-bar icon keeps refresh, visibility, window, startup, and quit controls close at hand.
+
+![Codex Usage Monitor menu-bar icon and menu options](assets/screenshots/menu-demo.png)
+
 ## Requirements
 
 - macOS on Apple silicon
