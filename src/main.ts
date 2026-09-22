@@ -35,6 +35,7 @@ type StatusTray = InstanceType<typeof Tray>;
 interface Preferences {
   alwaysOnTop?: boolean;
   hideFromDock?: boolean;
+  showPercentageLeftInMenuBar?: boolean;
   widgetWidth?: number;
 }
 
@@ -48,6 +49,7 @@ let creditSnapshot: CreditSnapshot | undefined;
 let creditsRead: Promise<CreditSnapshot> | undefined;
 let alwaysOnTop = true;
 let hideFromDock = true;
+let showPercentageLeftInMenuBar = true;
 let widgetWidth = baseWidgetWidth;
 let compactWidget = false;
 let resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -179,11 +181,24 @@ async function setHideFromDock(enabled: boolean): Promise<void> {
   }
 }
 
+async function setShowPercentageLeftInMenuBar(enabled: boolean): Promise<void> {
+  showPercentageLeftInMenuBar = enabled;
+  updateTrayMenu();
+  try {
+    await savePreferences();
+  } catch (error) {
+    console.error("Could not save the menu-bar percentage setting", error);
+  }
+}
+
 async function loadPreferences(): Promise<void> {
   try {
     const stored = JSON.parse(await readFile(preferencesPath(), "utf8")) as Preferences;
     if (typeof stored.alwaysOnTop === "boolean") alwaysOnTop = stored.alwaysOnTop;
     if (typeof stored.hideFromDock === "boolean") hideFromDock = stored.hideFromDock;
+    if (typeof stored.showPercentageLeftInMenuBar === "boolean") {
+      showPercentageLeftInMenuBar = stored.showPercentageLeftInMenuBar;
+    }
     if (typeof stored.widgetWidth === "number" && stored.widgetWidth >= 220) {
       widgetWidth = stored.widgetWidth;
     }
@@ -197,7 +212,7 @@ async function loadPreferences(): Promise<void> {
 async function savePreferences(): Promise<void> {
   const path = preferencesPath();
   await mkdir(dirname(path), { recursive: true });
-  const preferences = { alwaysOnTop, hideFromDock, widgetWidth };
+  const preferences = { alwaysOnTop, hideFromDock, showPercentageLeftInMenuBar, widgetWidth };
   await writeFile(path, `${JSON.stringify(preferences, null, 2)}\n`, "utf8");
 }
 
@@ -437,6 +452,13 @@ function configureApplicationMenu(): void {
 
 function updateTrayMenu(): void {
   if (!tray) return;
+  const topLimit = usageSnapshot?.rateLimits.primary ?? usageSnapshot?.rateLimits.secondary;
+  const remainingPercent = topLimit
+    ? Math.max(0, Math.min(100, 100 - topLimit.used_percent))
+    : undefined;
+  tray.setTitle(showPercentageLeftInMenuBar && remainingPercent !== undefined
+    ? `${formatPercent(remainingPercent)}%`
+    : "");
   const usageWindows = [
     { name: "5 hour", limit: usageSnapshot?.rateLimits.primary },
     { name: "Weekly", limit: usageSnapshot?.rateLimits.secondary },
@@ -485,6 +507,12 @@ function updateTrayMenu(): void {
       type: "checkbox",
       checked: hideFromDock,
       click: (item) => void setHideFromDock(item.checked),
+    },
+    {
+      label: "Show percentage left in menu bar",
+      type: "checkbox",
+      checked: showPercentageLeftInMenuBar,
+      click: (item) => void setShowPercentageLeftInMenuBar(item.checked),
     },
     {
       label: "Start on boot",
