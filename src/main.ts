@@ -19,6 +19,7 @@ const { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } = electron;
 const appName = "Codex Monitor";
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const appIconPath = join(currentDirectory, "../assets/codex-monitor.png");
+const menuBarIconPath = join(currentDirectory, "../assets/codex-monitorTemplate.png");
 const codexDirectory = process.env.CODEX_HOME ?? join(homedir(), ".codex");
 const adminPartition = "persist:codex-monitor-admin";
 const launchAgentLabel = "com.codex-monitor.widget";
@@ -420,10 +421,7 @@ async function refreshAll(): Promise<void> {
 }
 
 function createTray(): void {
-  const icon = nativeImage.createFromNamedImage("chart.xyaxis.line", {
-    pointSize: 13,
-    weight: "regular",
-  }).resize({ width: 16, height: 16, quality: "best" });
+  const icon = nativeImage.createFromPath(menuBarIconPath);
   if (icon.isEmpty()) throw new Error("Could not create the menu-bar icon");
   icon.setTemplateImage(true);
   tray = new Tray(icon);

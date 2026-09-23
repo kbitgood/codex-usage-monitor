@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Monitor widget color preview</title>
+    <link rel="stylesheet" href="../ui/widget.css" />
+    <style>
+      html { width: auto; height: auto; min-height: 100%; overflow: auto; background: linear-gradient(145deg, #edf5fb, #dcebf5); }
+      body { margin: max(32px, calc((100vh - 274px) / 2)) auto 0; transform: none; filter: drop-shadow(0 18px 28px rgba(39, 92, 139, .18)); }
+    </style>
+  </head>
+  <body>
+    <main class="widget" aria-label="Codex usage monitor color preview">
+      <section class="limits">
+        <article class="limit">
+          <div class="limit-heading"><span class="label">5 HOUR LEFT</span><strong class="percent" style="color: var(--blue)">78%</strong></div>
+          <div class="track"><span class="fill" style="width: 78%"></span></div>
+          <div class="reset"><span>RESET</span><time>2h 14m · 8:30 PM</time></div>
+        </article>
+        <article class="limit">
+          <div class="limit-heading"><span class="label">WEEKLY LEFT</span><strong class="percent" style="color: var(--blue)">52%</strong></div>
+          <div class="track"><span class="fill" style="width: 52%"></span></div>
+          <div class="reset"><span>RESET</span><time>5d 16h · Mon 9:53 AM</time></div>
+        </article>
+      </section>
+      <section class="credits">
+        <div class="credits-heading"><span class="label">PAID CODEX CREDITS</span><strong class="credits-today">0 cr · $0.00</strong></div>
+        <div class="credit-chart" aria-label="Sample credit chart">
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">T</span></div>
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">F</span></div>
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 48px"></span></div><span class="credit-day">S</span></div>
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">S</span></div>
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">M</span></div>
+          <div class="credit-column"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">T</span></div>
+          <div class="credit-column today"><div class="credit-bar-shell"><span class="credit-bar" style="height: 2px"></span></div><span class="credit-day">W</span></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

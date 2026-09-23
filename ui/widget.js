@@ -68,7 +68,7 @@ function renderWindow(name, limit) {
     ? "var(--red)"
     : remainingPercent <= 30
       ? "var(--amber)"
-      : "var(--green)";
+      : "var(--blue)";
   const reset = new Date(limit.resets_at * 1_000);
   const remaining = Math.max(0, reset.getTime() - Date.now());
 
