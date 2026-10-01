@@ -82,6 +82,7 @@ async function codexHeaders(codexDirectory: string): Promise<Record<string, stri
   }
   return {
     Accept: "application/json",
+    // Electron's default fetch User-Agent is rejected by the usage endpoint.
     "User-Agent": "Codex Monitor/0.1.0",
     Authorization: `Bearer ${accessToken}`,
     "ChatGPT-Account-Id": accountId,

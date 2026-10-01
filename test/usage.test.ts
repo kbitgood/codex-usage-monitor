@@ -1,7 +1,38 @@
-import { describe, expect, test } from "bun:test";
-import { parseLiveRateLimits } from "../src/usage";
+import { describe, expect, spyOn, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parseLiveRateLimits, readLiveRateLimits } from "../src/usage";
 
 describe("live Codex usage parsing", () => {
+  test("uses an explicit app User-Agent for live requests in Electron", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "codex-usage-"));
+    const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      rate_limit: {
+        primary_window: {
+          used_percent: 19,
+          limit_window_seconds: 604_800,
+          reset_at: 1_791_233_223,
+        },
+      },
+    })));
+    try {
+      await writeFile(join(directory, "auth.json"), JSON.stringify({
+        tokens: { access_token: "test-token", account_id: "test-account" },
+      }));
+      const limits = await readLiveRateLimits(directory);
+      expect(limits.secondary?.used_percent).toBe(19);
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        "User-Agent": "Codex Monitor/0.1.0",
+        Authorization: "Bearer test-token",
+        "ChatGPT-Account-Id": "test-account",
+      });
+    } finally {
+      fetchMock.mockRestore();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("maps API windows to rollout-compatible rate limits", () => {
     const limits = parseLiveRateLimits({
       plan_type: "team",
