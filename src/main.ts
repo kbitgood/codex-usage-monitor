@@ -1,4 +1,5 @@
 import electron from "electron";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -12,7 +13,8 @@ import {
   type CodexAdminIdentity,
 } from "./credits";
 import { estimatePaidCreditDays } from "./estimate";
-import { readCurrentSnapshot } from "./usage";
+import { exhaustedWindowKey } from "./auto-reset";
+import { consumeBankedReset, readCurrentSnapshot, readLiveRateLimits } from "./usage";
 import type { CreditSnapshot, MonitorSnapshot, RateLimitWindow } from "./types";
 
 const { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } = electron;
@@ -29,8 +31,8 @@ const liveUsageCacheMilliseconds = 15_000;
 const creditsRefreshMilliseconds = 60_000;
 const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
-const fullWidgetHeight = 274;
-const compactWidgetHeight = 204;
+const fullWidgetHeight = 324;
+const compactWidgetHeight = 254;
 type Window = InstanceType<typeof BrowserWindow>;
 type StatusTray = InstanceType<typeof Tray>;
 interface Preferences {
@@ -38,6 +40,8 @@ interface Preferences {
   hideFromDock?: boolean;
   showPercentageLeftInMenuBar?: boolean;
   widgetWidth?: number;
+  automaticallyUseResets?: boolean;
+  automaticResetAttemptKey?: string;
 }
 
 let mainWindow: Window | undefined;
@@ -51,6 +55,9 @@ let creditsRead: Promise<CreditSnapshot> | undefined;
 let alwaysOnTop = true;
 let hideFromDock = true;
 let showPercentageLeftInMenuBar = true;
+let automaticallyUseResets = false;
+let automaticResetAttemptKey: string | undefined;
+let automaticResetInFlight = false;
 let widgetWidth = baseWidgetWidth;
 let compactWidget = false;
 let resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -104,6 +111,10 @@ function currentWidgetAspectRatio(): number {
 function setCompactWidget(compact: boolean): void {
   if (compactWidget === compact) return;
   compactWidget = compact;
+  resizeWidgetForLayout();
+}
+
+function resizeWidgetForLayout(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   const width = mainWindow.getBounds().width;
@@ -192,6 +203,20 @@ async function setShowPercentageLeftInMenuBar(enabled: boolean): Promise<void> {
   }
 }
 
+async function setAutomaticallyUseResets(enabled: boolean): Promise<void> {
+  automaticallyUseResets = enabled;
+  updateTrayMenu();
+  mainWindow?.webContents.send("settings:auto-resets-changed", enabled);
+  try {
+    await savePreferences();
+  } catch (error) {
+    automaticallyUseResets = false;
+    updateTrayMenu();
+    mainWindow?.webContents.send("settings:auto-resets-changed", false);
+    console.error("Could not save automatic reset setting", error);
+  }
+}
+
 async function loadPreferences(): Promise<void> {
   try {
     const stored = JSON.parse(await readFile(preferencesPath(), "utf8")) as Preferences;
@@ -199,6 +224,12 @@ async function loadPreferences(): Promise<void> {
     if (typeof stored.hideFromDock === "boolean") hideFromDock = stored.hideFromDock;
     if (typeof stored.showPercentageLeftInMenuBar === "boolean") {
       showPercentageLeftInMenuBar = stored.showPercentageLeftInMenuBar;
+    }
+    if (typeof stored.automaticallyUseResets === "boolean") {
+      automaticallyUseResets = stored.automaticallyUseResets;
+    }
+    if (typeof stored.automaticResetAttemptKey === "string") {
+      automaticResetAttemptKey = stored.automaticResetAttemptKey;
     }
     if (typeof stored.widgetWidth === "number" && stored.widgetWidth >= 220) {
       widgetWidth = stored.widgetWidth;
@@ -213,7 +244,10 @@ async function loadPreferences(): Promise<void> {
 async function savePreferences(): Promise<void> {
   const path = preferencesPath();
   await mkdir(dirname(path), { recursive: true });
-  const preferences = { alwaysOnTop, hideFromDock, showPercentageLeftInMenuBar, widgetWidth };
+  const preferences = {
+    alwaysOnTop, hideFromDock, showPercentageLeftInMenuBar, widgetWidth,
+    automaticallyUseResets, automaticResetAttemptKey,
+  };
   await writeFile(path, `${JSON.stringify(preferences, null, 2)}\n`, "utf8");
 }
 
@@ -370,7 +404,29 @@ async function getLatestUsage(force = false): Promise<MonitorSnapshot | undefine
   usageSnapshot = await usageRead;
   usageReadAt = Date.now();
   updateTrayMenu();
+  void maybeAutomaticallyUseReset();
   return usageSnapshot;
+}
+
+async function maybeAutomaticallyUseReset(): Promise<void> {
+  if (!automaticallyUseResets || automaticResetInFlight) return;
+  if (!exhaustedWindowKey(usageSnapshot?.rateLimits ?? {})) return;
+  automaticResetInFlight = true;
+  try {
+    // Recheck the live endpoint immediately before making a one-time reset attempt.
+    const live = await readLiveRateLimits(codexDirectory);
+    const key = exhaustedWindowKey(live);
+    if (!automaticallyUseResets || !key || key === automaticResetAttemptKey) return;
+    automaticResetAttemptKey = key;
+    await savePreferences();
+    if (!automaticallyUseResets) return;
+    await consumeBankedReset(codexDirectory, randomUUID());
+    await refreshAll();
+  } catch (error) {
+    console.error("Could not automatically use a banked reset", error);
+  } finally {
+    automaticResetInFlight = false;
+  }
 }
 
 async function getLatestCredits(): Promise<CreditSnapshot> {
@@ -480,6 +536,9 @@ function updateTrayMenu(): void {
 
   tray.setContextMenu(Menu.buildFromTemplate([
     ...usageItems,
+    { label: usageSnapshot?.rateLimits.bankedResets == null
+      ? "Banked usage resets: unavailable"
+      : `Banked usage resets: ${usageSnapshot.rateLimits.bankedResets}`, enabled: false },
     { type: "separator" },
     { label: paidCredits, enabled: false },
     ...adminLoginItems,
@@ -511,6 +570,12 @@ function updateTrayMenu(): void {
       type: "checkbox",
       checked: showPercentageLeftInMenuBar,
       click: (item) => void setShowPercentageLeftInMenuBar(item.checked),
+    },
+    {
+      label: "Automatically Use Resets",
+      type: "checkbox",
+      checked: automaticallyUseResets,
+      click: (item) => void setAutomaticallyUseResets(item.checked),
     },
     {
       label: "Start on boot",
@@ -649,6 +714,7 @@ function escapeXml(value: string): string {
 }
 
 ipcMain.handle("usage:latest", () => getLatestUsage());
+ipcMain.handle("settings:auto-resets", () => automaticallyUseResets);
 ipcMain.handle("credits:latest", getLatestCredits);
 ipcMain.on("window:hide", hideWindow);
 ipcMain.on("window:set-compact", (_event, compact: unknown) => {

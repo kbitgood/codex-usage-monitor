@@ -4,6 +4,7 @@ import { readLatestSnapshot } from "./reader";
 import type { MonitorSnapshot, RateLimits, RateLimitWindow } from "./types";
 
 const usageUrl = "https://chatgpt.com/backend-api/codex/usage";
+const consumeResetUrl = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume";
 
 interface CodexAuth {
   tokens?: {
@@ -26,6 +27,10 @@ interface LiveUsagePayload {
     secondary_window?: LiveWindow | null;
   } | null;
   credits?: RateLimits["credits"];
+  rate_limit_reset_credits?: {
+    available_count?: unknown;
+    applicable_available_count?: unknown;
+  } | null;
 }
 
 export async function readCurrentSnapshot(
@@ -50,25 +55,37 @@ export async function readCurrentSnapshot(
 }
 
 export async function readLiveRateLimits(codexDirectory: string): Promise<RateLimits> {
-  const auth = JSON.parse(
-    await readFile(join(codexDirectory, "auth.json"), "utf8"),
-  ) as CodexAuth;
+  const response = await fetch(usageUrl, {
+    headers: await codexHeaders(codexDirectory),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Live Codex usage request failed (${response.status})`);
+  return parseLiveRateLimits(await response.json());
+}
+
+export async function consumeBankedReset(codexDirectory: string, requestId: string): Promise<void> {
+  const response = await fetch(consumeResetUrl, {
+    method: "POST",
+    headers: { ...await codexHeaders(codexDirectory), "Content-Type": "application/json" },
+    body: JSON.stringify({ redeem_request_id: requestId }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Codex reset request failed (${response.status})`);
+}
+
+async function codexHeaders(codexDirectory: string): Promise<Record<string, string>> {
+  const auth = JSON.parse(await readFile(join(codexDirectory, "auth.json"), "utf8")) as CodexAuth;
   const accessToken = auth.tokens?.access_token;
   const accountId = auth.tokens?.account_id;
   if (typeof accessToken !== "string" || typeof accountId !== "string") {
     throw new Error("Codex login credentials not found");
   }
-
-  const response = await fetch(usageUrl, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      "ChatGPT-Account-Id": accountId,
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`Live Codex usage request failed (${response.status})`);
-  return parseLiveRateLimits(await response.json());
+  return {
+    Accept: "application/json",
+    "User-Agent": "Codex Monitor/0.1.0",
+    Authorization: `Bearer ${accessToken}`,
+    "ChatGPT-Account-Id": accountId,
+  };
 }
 
 export function parseLiveRateLimits(payload: unknown): RateLimits {
@@ -81,6 +98,8 @@ export function parseLiveRateLimits(payload: unknown): RateLimits {
     plan_type: stringOrNull(usage.plan_type),
     rate_limit_reached_type: stringOrNull(usage.rate_limit_reached_type),
     credits: usage.credits ?? null,
+    bankedResets: nonnegativeInteger(usage.rate_limit_reset_credits?.available_count) ?? null,
+    applicableBankedResets: nonnegativeInteger(usage.rate_limit_reset_credits?.applicable_available_count) ?? null,
   });
 }
 
@@ -122,6 +141,11 @@ function parseLiveWindow(window: LiveWindow | null | undefined): RateLimitWindow
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function nonnegativeInteger(value: unknown): number | undefined {
+  const number = numberValue(value);
+  return number !== undefined && Number.isInteger(number) && number >= 0 ? number : undefined;
 }
 
 function stringOrNull(value: unknown): string | null {

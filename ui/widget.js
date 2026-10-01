@@ -2,8 +2,8 @@ const refreshMilliseconds = 2_000;
 const creditsRefreshMilliseconds = 60_000;
 const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
-const fullWidgetHeight = 274;
-const compactWidgetHeight = 204;
+const fullWidgetHeight = 324;
+const compactWidgetHeight = 254;
 let baseWidgetHeight = fullWidgetHeight;
 let compactLayout = false;
 let creditsTimer;
@@ -32,6 +32,16 @@ window.codexMonitor.onRefresh(() => {
   void refreshCredits();
 });
 
+function showAutomaticallyUseResets(enabled) {
+  document.querySelector("#auto-reset-indicator").textContent = enabled
+    ? "AUTO-USE ENABLED"
+    : "AUTO-USE DISABLED";
+  document.body.classList.toggle("auto-resets-enabled", enabled);
+}
+
+window.codexMonitor.onAutomaticallyUseResetsChanged(showAutomaticallyUseResets);
+window.codexMonitor.automaticallyUseResets().then(showAutomaticallyUseResets);
+
 async function refresh() {
   try {
     const snapshot = await window.codexMonitor.latest();
@@ -39,6 +49,8 @@ async function refresh() {
     document.body.classList.remove("error");
     renderWindow("primary", snapshot.rateLimits.primary);
     renderWindow("secondary", snapshot.rateLimits.secondary);
+    document.querySelector("#banked-resets-count").textContent =
+      snapshot.rateLimits.bankedResets ?? "--";
     const windowCount = [
       snapshot.rateLimits.primary,
       snapshot.rateLimits.secondary,
@@ -52,9 +64,13 @@ async function refresh() {
 function setCompactLayout(compact) {
   if (compactLayout === compact) return;
   compactLayout = compact;
-  baseWidgetHeight = compact ? compactWidgetHeight : fullWidgetHeight;
   document.body.classList.toggle("compact", compact);
   window.codexMonitor.setCompact(compact);
+  updateWidgetHeight();
+}
+
+function updateWidgetHeight() {
+  baseWidgetHeight = compactLayout ? compactWidgetHeight : fullWidgetHeight;
   requestAnimationFrame(scaleWidget);
 }
 

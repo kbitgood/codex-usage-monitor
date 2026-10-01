@@ -18,6 +18,7 @@ describe("live Codex usage parsing", () => {
         },
       },
       credits: { has_credits: true, unlimited: false, balance: null },
+      rate_limit_reset_credits: { available_count: 2, applicable_available_count: 0 },
     });
 
     expect(limits).toEqual({
@@ -26,6 +27,8 @@ describe("live Codex usage parsing", () => {
       plan_type: "team",
       rate_limit_reached_type: null,
       credits: { has_credits: true, unlimited: false, balance: null },
+      bankedResets: 2,
+      applicableBankedResets: 0,
     });
   });
 

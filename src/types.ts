@@ -20,6 +20,8 @@ export interface RateLimits {
   secondary?: RateLimitWindow | null;
   plan_type?: string | null;
   rate_limit_reached_type?: string | null;
+  bankedResets?: number | null;
+  applicableBankedResets?: number | null;
   credits?: {
     has_credits?: boolean;
     unlimited?: boolean;
