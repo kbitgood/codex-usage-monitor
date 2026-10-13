@@ -4,7 +4,9 @@ const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
 const fullWidgetHeight = 324;
 const compactWidgetHeight = 254;
-let baseWidgetHeight = fullWidgetHeight;
+const creditsSectionHeight = 112;
+let creditsVisible = false;
+let baseWidgetHeight = fullWidgetHeight - creditsSectionHeight;
 let compactLayout = false;
 let creditsTimer;
 
@@ -70,7 +72,8 @@ function setCompactLayout(compact) {
 }
 
 function updateWidgetHeight() {
-  baseWidgetHeight = compactLayout ? compactWidgetHeight : fullWidgetHeight;
+  baseWidgetHeight = (compactLayout ? compactWidgetHeight : fullWidgetHeight)
+    - (creditsVisible ? 0 : creditsSectionHeight);
   requestAnimationFrame(scaleWidget);
 }
 
@@ -96,26 +99,19 @@ function renderWindow(name, limit) {
   element.querySelector("time").dateTime = reset.toISOString();
 }
 
+function applyCreditSnapshot(snapshot) {
+  if (snapshot.status === "ready") renderCredits(snapshot);
+  else setCreditsVisible(false);
+  scheduleCreditsRefresh(creditsRefreshMilliseconds);
+}
+
 async function refreshCredits() {
   try {
     const snapshot = await window.codexMonitor.latestCredits();
-    if (snapshot.status === "ready") {
-      renderCredits(snapshot);
-      scheduleCreditsRefresh(creditsRefreshMilliseconds);
-      return;
-    }
-
-    if (snapshot.status === "auth_required") {
-      setCreditStatus("ADMIN LOGIN NEEDED");
-    } else if (snapshot.status === "unavailable") {
-      setCreditStatus("CODEX LOGIN NOT FOUND");
-    } else {
-      setCreditStatus("CREDITS UNAVAILABLE");
-    }
-    scheduleCreditsRefresh(5_000);
+    applyCreditSnapshot(snapshot);
   } catch {
-    setCreditStatus("CREDITS UNAVAILABLE");
-    scheduleCreditsRefresh(5_000);
+    setCreditsVisible(false);
+    scheduleCreditsRefresh(creditsRefreshMilliseconds);
   }
 }
 
@@ -126,16 +122,10 @@ function scheduleCreditsRefresh(delay) {
 
 function renderCredits(snapshot) {
   const chart = document.querySelector("#credit-chart");
-  const status = document.querySelector("#credit-status");
   const recent = recentCreditDays(snapshot.days);
-  const estimated = snapshot.source === "estimate";
   const maximum = Math.max(1, ...recent.map((day) => day.credits));
   const today = recent.at(-1);
   const todaySummary = `${formatCreditAmount(today.credits)} cr · ${formatUsd(today.credits * creditPriceUsd)}`;
-  document.querySelector("#credits-label").textContent = estimated
-    ? "ESTIMATED CREDITS"
-    : "PAID CODEX CREDITS";
-  chart.setAttribute("aria-label", `${estimated ? "Estimated" : "Paid Codex"} credits for the last seven days`);
   chart.onpointerleave = () => setCreditSummary(todaySummary);
 
   chart.replaceChildren(...recent.map((day, index) => {
@@ -144,7 +134,7 @@ function renderCredits(snapshot) {
     const credits = formatCreditAmount(day.credits);
     const estimatedPrice = formatUsd(day.credits * creditPriceUsd);
     const hoverSummary = `${credits} cr · ${estimatedPrice}`;
-    column.title = `${day.date}: ${credits} ${estimated ? "estimated " : ""}credits, ${estimatedPrice} estimated${day.partial ? " so far" : ""}`;
+    column.title = `${day.date}: ${credits} credits, ${estimatedPrice} estimated${day.partial ? " so far" : ""}`;
     column.setAttribute("aria-label", column.title);
     column.tabIndex = 0;
     column.addEventListener("pointerenter", () => setCreditSummary(hoverSummary));
@@ -170,8 +160,7 @@ function renderCredits(snapshot) {
   }));
 
   setCreditSummary(todaySummary);
-  chart.hidden = false;
-  status.hidden = true;
+  setCreditsVisible(true);
 }
 
 function setCreditSummary(value) {
@@ -193,13 +182,15 @@ function recentCreditDays(days) {
   return results;
 }
 
-function setCreditStatus(message) {
-  const chart = document.querySelector("#credit-chart");
-  const status = document.querySelector("#credit-status");
-  document.querySelector("#credit-status-text").textContent = message;
-  document.querySelector("#credits-today").textContent = "-- today";
-  chart.hidden = true;
-  status.hidden = false;
+function setCreditsVisible(visible) {
+  creditsVisible = visible;
+  document.querySelector(".credits").hidden = !visible;
+  document.body.classList.toggle("no-credits", !visible);
+  if (!visible) {
+    document.querySelector("#credit-chart").replaceChildren();
+    document.querySelector("#credits-today").textContent = "";
+  }
+  updateWidgetHeight();
 }
 
 function formatCreditAmount(value) {

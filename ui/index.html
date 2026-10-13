@@ -7,7 +7,7 @@
     <title>Codex usage</title>
     <link rel="stylesheet" href="./widget.css" />
   </head>
-  <body>
+  <body class="no-credits">
     <main class="widget" aria-label="Codex usage monitor">
       <section class="limits" id="limits" aria-live="polite">
         <article class="limit" data-window="primary">
@@ -40,15 +40,12 @@
         </div>
       </section>
 
-      <section class="credits" aria-live="polite">
+      <section class="credits" aria-live="polite" hidden>
         <div class="credits-heading">
           <span class="label" id="credits-label">PAID CODEX CREDITS</span>
           <strong class="credits-today" id="credits-today">-- today</strong>
         </div>
         <div class="credit-chart" id="credit-chart" aria-label="Paid Codex credits for the last seven days"></div>
-        <div class="credit-status" id="credit-status" hidden>
-          <span id="credit-status-text">ADMIN LOGIN NEEDED</span>
-        </div>
       </section>
       <button class="close" id="close" aria-label="Hide monitor">×</button>
     </main>

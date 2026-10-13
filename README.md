@@ -8,13 +8,10 @@ The widget shows:
 - The reset time for each available window
 - Banked usage resets and whether automatic use is enabled
 - Seven days of actual paid Codex credits when Admin Console access is available
-- A deliberately high local estimate when actual credit data is unavailable
 
 ## Preview
 
-The blue widget shows usage limits, banked resets, and a seven-day credit chart. These screenshots use sample data with automatic resets enabled. Automatic resets are disabled by default on a new installation. The widget uses the same chart layout for actual and estimated credits, and collapses to one usage window when only one is available.
-
-![Codex Monitor widget showing sample usage limits, two banked resets, automatic use enabled, and estimated credits](assets/screenshots/widget-demo.png)
+The widget shows usage limits and banked resets. It adds a seven-day credit chart only when the connected account can access actual credit analytics. Without analytics access, the credit section is hidden and the widget shrinks. It also collapses to one usage window when only one is available. Automatic resets are disabled by default on a new installation.
 
 Click the menu-bar icon or percentage to open the menu. It includes Admin Console login, automatic resets, window settings, and startup controls.
 
@@ -102,19 +99,7 @@ The application reads the Codex login from `$CODEX_HOME/auth.json`, normally `~/
 
 Choose **Login with Admin Account** from the menu-bar menu to sign in through a separate Admin Console window. When that session can access credit analytics, the monitor uses the actual results. Electron keeps this login in a dedicated persistent browser session. The application does not extract or save browser cookies.
 
-The chart then displays actual paid Codex credits for the last seven days.
-
-### Estimated credits
-
-When there is no active Admin Console login or the account cannot access credit analytics, the monitor automatically shows the same chart under the title **Estimated Credits**. The estimate is intentionally biased high:
-
-- Requests reported at 99% or 100% usage are included.
-- The full request that crosses the included limit is counted.
-- Usage continues to count until the exhausted window resets.
-- Missing model metadata uses GPT-6 Astra credit rates.
-- Missing or Fast effective service-tier metadata adds a 2.5x Fast-mode reserve.
-
-The estimate covers Codex activity recorded locally on that Mac. It may still omit cloud tasks, activity on other computers, and separately billed tools.
+The chart displays actual paid Codex credits for the last seven days only when the analytics request succeeds. Use an account with access, such as an admin, owner, or analytics viewer. Members without analytics access do not see the credit section. The app does not estimate credits from local session logs.
 
 ## Privacy and limitations
 

@@ -38,6 +38,11 @@ body.compact {
   height: 254px;
 }
 
+body.no-credits { height: 212px; }
+body.compact.no-credits { height: 142px; }
+.no-credits .widget { grid-template-rows: 1fr; }
+.credits[hidden] { display: none; }
+
 .widget {
   position: relative;
   display: grid;
@@ -298,17 +303,6 @@ body.compact {
 .credit-column:hover .credit-day,
 .credit-column:focus-visible .credit-day {
   color: var(--ink);
-}
-
-.credit-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 74px;
-  color: var(--muted);
-  font-family: "SFMono-Regular", Menlo, monospace;
-  font-size: 9px;
-  letter-spacing: 0.09em;
 }
 
 .credit-status[hidden],

@@ -48,19 +48,11 @@ export interface CreditDay {
   date: string;
   credits: number;
   partial: boolean;
-  confirmedCredits?: number;
-  boundaryCredits?: number;
-  metadataReserve?: number;
-  speedReserve?: number;
 }
 
 export interface CreditSnapshot {
   status: "ready" | "auth_required" | "unavailable" | "error";
   days: CreditDay[];
-  source?: "admin" | "estimate";
-  actualDays?: CreditDay[];
-  estimatedDays?: CreditDay[];
-  adminStatus?: "ready" | "auth_required" | "unavailable" | "error";
   updatedAt?: string;
   message?: string;
 }

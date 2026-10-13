@@ -12,7 +12,6 @@ import {
   parseCreditDays,
   type CodexAdminIdentity,
 } from "./credits";
-import { estimatePaidCreditDays } from "./estimate";
 import { exhaustedWindowKey } from "./auto-reset";
 import { consumeBankedReset, readCurrentSnapshot, readLiveRateLimits } from "./usage";
 import type { CreditSnapshot, MonitorSnapshot, RateLimitWindow } from "./types";
@@ -33,6 +32,7 @@ const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
 const fullWidgetHeight = 324;
 const compactWidgetHeight = 254;
+const creditsSectionHeight = 112;
 type Window = InstanceType<typeof BrowserWindow>;
 type StatusTray = InstanceType<typeof Tray>;
 interface Preferences {
@@ -105,7 +105,9 @@ function createWindow(): void {
 }
 
 function currentWidgetAspectRatio(): number {
-  return baseWidgetWidth / (compactWidget ? compactWidgetHeight : fullWidgetHeight);
+  const height = (compactWidget ? compactWidgetHeight : fullWidgetHeight)
+    - (creditSnapshot?.status === "ready" ? 0 : creditsSectionHeight);
+  return baseWidgetWidth / height;
 }
 
 function setCompactWidget(compact: boolean): void {
@@ -430,45 +432,14 @@ async function maybeAutomaticallyUseReset(): Promise<void> {
 }
 
 async function getLatestCredits(): Promise<CreditSnapshot> {
-  creditsRead ??= readCreditSnapshot().finally(() => {
+  creditsRead ??= readCredits().finally(() => {
     creditsRead = undefined;
   });
+  const hadCredits = creditSnapshot?.status === "ready";
   creditSnapshot = await creditsRead;
+  if (hadCredits !== (creditSnapshot.status === "ready")) resizeWidgetForLayout();
   updateTrayMenu();
   return creditSnapshot;
-}
-
-async function readCreditSnapshot(): Promise<CreditSnapshot> {
-  const [adminResult, estimateResult] = await Promise.allSettled([
-    readCredits(),
-    estimatePaidCreditDays(codexDirectory),
-  ]);
-  const admin = adminResult.status === "fulfilled"
-    ? adminResult.value
-    : { status: "error" as const, days: [], message: "Admin credits request failed" };
-  const estimatedDays = estimateResult.status === "fulfilled" ? estimateResult.value : [];
-
-  if (admin.status === "ready") {
-    return {
-      ...admin,
-      source: "admin",
-      actualDays: admin.days,
-      estimatedDays,
-      adminStatus: "ready",
-    };
-  }
-  if (estimatedDays.length) {
-    return {
-      status: "ready",
-      source: "estimate",
-      days: estimatedDays,
-      estimatedDays,
-      adminStatus: admin.status,
-      updatedAt: new Date().toISOString(),
-      message: admin.message,
-    };
-  }
-  return admin;
 }
 
 async function refreshAll(): Promise<void> {
@@ -524,8 +495,7 @@ function updateTrayMenu(): void {
       ])
     : [{ label: "Usage unavailable", enabled: false }];
   const paidCredits = formatPaidCredits(creditSnapshot);
-  const adminLoginItems: Electron.MenuItemConstructorOptions[] = creditSnapshot?.adminStatus === "ready"
-    || creditSnapshot?.source === "admin"
+  const adminLoginItems: Electron.MenuItemConstructorOptions[] = creditSnapshot?.status === "ready"
     ? []
     : [{
         label: "Login with Admin Account",
@@ -605,8 +575,7 @@ function formatPaidCredits(snapshot?: CreditSnapshot): string {
   if (snapshot.status !== "ready") return "Credits today: unavailable";
   const today = new Date().toISOString().slice(0, 10);
   const credits = snapshot.days.find((day) => day.date === today)?.credits ?? 0;
-  const label = snapshot.source === "estimate" ? "Estimated credits today" : "Paid credits today";
-  return `${label}: ${formatCreditAmount(credits)} cr · ${formatUsd(credits * creditPriceUsd)}`;
+  return `Paid credits today: ${formatCreditAmount(credits)} cr · ${formatUsd(credits * creditPriceUsd)}`;
 }
 
 function formatCreditAmount(value: number): string {
