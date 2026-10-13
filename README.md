@@ -68,6 +68,8 @@ Use `bun run dev` only when you specifically want the generic Electron developme
 
 ## Usage
 
+The widget follows macOS light or dark appearance and updates automatically when the system appearance changes.
+
 The reset countdown updates every two seconds. Live limits are fetched at most every 15 seconds or immediately through **Refresh now**. Credit data refreshes once per minute.
 
 Drag the usage area to move the widget. Resize it from any edge. Hover over the widget to reveal the hide button, or press `Escape`. Hover over a credit bar to see that day's credits and estimated dollar cost.
