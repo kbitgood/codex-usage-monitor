@@ -30,8 +30,8 @@ const liveUsageCacheMilliseconds = 15_000;
 const creditsRefreshMilliseconds = 60_000;
 const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
-const fullWidgetHeight = 324;
-const compactWidgetHeight = 254;
+const fullWidgetHeight = 336;
+const compactWidgetHeight = 266;
 const creditsSectionHeight = 112;
 type Window = InstanceType<typeof BrowserWindow>;
 type StatusTray = InstanceType<typeof Tray>;
@@ -684,6 +684,13 @@ function escapeXml(value: string): string {
 
 ipcMain.handle("usage:latest", () => getLatestUsage());
 ipcMain.handle("settings:auto-resets", () => automaticallyUseResets);
+ipcMain.handle("settings:set-auto-resets", async (event, enabled: unknown) => {
+  if (event.sender !== mainWindow?.webContents || typeof enabled !== "boolean") {
+    throw new Error("Invalid automatic reset setting");
+  }
+  await setAutomaticallyUseResets(enabled);
+  return automaticallyUseResets;
+});
 ipcMain.handle("credits:latest", getLatestCredits);
 ipcMain.on("window:hide", hideWindow);
 ipcMain.on("window:set-compact", (_event, compact: unknown) => {

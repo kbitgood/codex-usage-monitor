@@ -2,8 +2,8 @@ const refreshMilliseconds = 2_000;
 const creditsRefreshMilliseconds = 60_000;
 const creditPriceUsd = 0.056;
 const baseWidgetWidth = 340;
-const fullWidgetHeight = 324;
-const compactWidgetHeight = 254;
+const fullWidgetHeight = 336;
+const compactWidgetHeight = 266;
 const creditsSectionHeight = 112;
 let creditsVisible = false;
 let baseWidgetHeight = fullWidgetHeight - creditsSectionHeight;
@@ -34,15 +34,30 @@ window.codexMonitor.onRefresh(() => {
   void refreshCredits();
 });
 
+const autoResetToggle = document.querySelector("#auto-reset-toggle");
+let automaticallyUseResets = false;
+
 function showAutomaticallyUseResets(enabled) {
-  document.querySelector("#auto-reset-indicator").textContent = enabled
-    ? "AUTO-USE ENABLED"
-    : "AUTO-USE DISABLED";
-  document.body.classList.toggle("auto-resets-enabled", enabled);
+  automaticallyUseResets = enabled;
+  autoResetToggle.checked = enabled;
 }
 
+autoResetToggle.addEventListener("change", async () => {
+  autoResetToggle.disabled = true;
+  try {
+    showAutomaticallyUseResets(await window.codexMonitor.setAutomaticallyUseResets(autoResetToggle.checked));
+  } catch {
+    autoResetToggle.checked = automaticallyUseResets;
+  } finally {
+    autoResetToggle.disabled = false;
+  }
+});
+
 window.codexMonitor.onAutomaticallyUseResetsChanged(showAutomaticallyUseResets);
-window.codexMonitor.automaticallyUseResets().then(showAutomaticallyUseResets);
+window.codexMonitor.automaticallyUseResets().then(enabled => {
+  showAutomaticallyUseResets(enabled);
+  autoResetToggle.disabled = false;
+});
 
 async function refresh() {
   try {

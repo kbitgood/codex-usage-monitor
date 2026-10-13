@@ -85,7 +85,7 @@ Click the menu-bar icon or percentage to change these settings:
 
 ### Automatic usage resets
 
-**Automatically Use Resets** is off by default. Enable it in the menu-bar menu. The widget shows **AUTO-USE ENABLED** or **AUTO-USE DISABLED** beneath the banked reset count.
+**Automatically Use Resets** is off by default. Use the switch on its own row below the banked reset count, or change the setting in the menu-bar menu. The switch stays in sync with the saved setting.
 
 When a usage window reaches 100% used and has not yet expired, the monitor checks live usage again. It consumes one reset only when the live response reports both a banked reset and an applicable reset. It saves the attempt before sending the request, makes at most one attempt for that exhausted window, and refreshes usage afterward. Failed attempts are logged and are not automatically retried for the same window.
 

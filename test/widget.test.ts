@@ -7,6 +7,8 @@ const source = readFileSync(new URL("../ui/widget.js", import.meta.url), "utf8")
 
 class Element {
   hidden = false;
+  checked = false;
+  disabled = false;
   listeners = new Map<string, () => unknown>();
   textContent = "";
   children: Element[] = [];
@@ -32,6 +34,7 @@ async function widget(initial: CreditSnapshot, compact = false) {
   let credits = initial;
   let fail = false;
   let settingChanged: (enabled: boolean) => void = () => {};
+  let failSetting = false;
   let savedSetting = false;
   const document = Object.assign(new Element(), {
     body: new Element(), documentElement: new Element(), createElement: () => new Element(),
@@ -45,6 +48,10 @@ async function widget(initial: CreditSnapshot, compact = false) {
       } }),
       latestCredits: async () => { if (fail) throw new Error("Offline"); return credits; },
       automaticallyUseResets: async () => savedSetting,
+      setAutomaticallyUseResets: async (enabled: boolean) => {
+        if (failSetting) throw new Error("Setting unavailable");
+        savedSetting = enabled; settingChanged(enabled); return savedSetting;
+      },
       onAutomaticallyUseResetsChanged(callback: (enabled: boolean) => void) { settingChanged = callback; }, onRefresh() {}, hide() {}, setCompact() {},
     },
   };
@@ -55,6 +62,13 @@ async function widget(initial: CreditSnapshot, compact = false) {
   await runInContext("refresh()", context);
   await runInContext("refreshCredits()", context);
   return {
+    toggle: document.querySelector("#auto-reset-toggle"),
+    settingChanged,
+    setToggle: async (enabled: boolean, reject = false) => {
+      failSetting = reject;
+      const toggle = document.querySelector("#auto-reset-toggle");
+      toggle.checked = enabled; await toggle.listeners.get("change")!();
+    },
     section: document.querySelector(".credits"), chart: document.querySelector("#credit-chart"),
     height: () => runInContext("baseWidgetHeight", context),
     refresh: async (next: CreditSnapshot, reject = false) => {
@@ -68,7 +82,7 @@ for (const status of ["auth_required", "unavailable", "error"] as const) {
     const view = await widget({ status, days: [] });
     expect(view.section.hidden).toBe(true);
     expect(view.chart.children).toHaveLength(0);
-    expect(view.height()).toBe(212);
+    expect(view.height()).toBe(224);
   });
 }
 
@@ -77,15 +91,29 @@ test("shows actual analytics, clears stale bars on lost access, and restores the
   const view = await widget(ready, true);
   expect(view.section.hidden).toBe(false);
   expect(view.chart.children).toHaveLength(7);
-  expect(view.height()).toBe(254);
+  expect(view.height()).toBe(266);
   await view.refresh({ status: "auth_required", days: [] });
   expect(view.section.hidden).toBe(true);
   expect(view.chart.children).toHaveLength(0);
-  expect(view.height()).toBe(142);
+  expect(view.height()).toBe(154);
   await view.refresh(ready);
   expect(view.section.hidden).toBe(false);
   expect(view.chart.children).toHaveLength(7);
   await view.refresh(ready, true);
   expect(view.section.hidden).toBe(true);
   expect(view.chart.children).toHaveLength(0);
+});
+
+test("widget switch saves changes, follows menu changes, and rolls back failed requests", async () => {
+  const view = await widget({ status: "auth_required", days: [] });
+  expect(view.toggle.checked).toBe(false);
+  expect(view.toggle.disabled).toBe(false);
+  await view.setToggle(true);
+  expect(view.toggle.checked).toBe(true);
+  expect(view.toggle.disabled).toBe(false);
+  view.settingChanged(false);
+  expect(view.toggle.checked).toBe(false);
+  await view.setToggle(true, true);
+  expect(view.toggle.checked).toBe(false);
+  expect(view.toggle.disabled).toBe(false);
 });

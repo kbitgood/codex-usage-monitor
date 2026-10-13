@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("codexMonitor", {
   latest: (): Promise<MonitorSnapshot | undefined> => ipcRenderer.invoke("usage:latest"),
   latestCredits: (): Promise<CreditSnapshot> => ipcRenderer.invoke("credits:latest"),
   automaticallyUseResets: (): Promise<boolean> => ipcRenderer.invoke("settings:auto-resets"),
+  setAutomaticallyUseResets: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke("settings:set-auto-resets", enabled),
   onAutomaticallyUseResetsChanged: (callback: (enabled: boolean) => void): void => {
     ipcRenderer.on("settings:auto-resets-changed", (_event, enabled: boolean) => callback(enabled));
   },
