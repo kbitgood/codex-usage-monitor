@@ -99,9 +99,15 @@ The application reads the Codex login from `$CODEX_HOME/auth.json`, normally `~/
 
 ### Actual paid credits
 
-Choose **Login with Admin Account** from the menu-bar menu to sign in through a separate Admin Console window. When that session can access credit analytics, the monitor uses the actual results. Electron keeps this login in a dedicated persistent browser session. The application does not extract or save browser cookies.
+Choose **Connect credit analytics** from the menu-bar menu to read how the connection works. Select **Log in with ChatGPT** to continue to OpenAI sign-in in a separate window, or **Not now** to keep using usage limits without connecting. When that session can access credit analytics, the monitor uses the actual results. Electron keeps this login in a dedicated persistent browser session. The application does not extract or save browser cookies.
+
+The login window is destroyed after analytics access is confirmed. Refreshes use the saved session directly without creating a browser window, including after restarting the app. If the session expires, the monitor hides the credit chart and offers reconnection rather than opening a browser automatically.
 
 The chart displays actual paid Codex credits for the last seven days only when the analytics request succeeds. Use an account with access, such as an admin, owner, or analytics viewer. Members without analytics access do not see the credit section. The app does not estimate credits from local session logs.
+
+Permission changes are checked on each analytics refresh, normally once per minute, or through **Refresh now**. If access is revoked, the credit chart is cleared immediately when detected and the menu explains that the account cannot access credit analytics. The account stays signed in, and the chart returns on a later refresh if access is restored. No browser opens automatically.
+
+The menu shows the email of the account signed into the analytics browser session. Choose **Log out of credit analytics** to clear that session and immediately remove the credit chart. Logout does not open a browser or change your Codex login. Analytics stay disconnected until you choose to log in again, including after restarting the monitor.
 
 ## Privacy and limitations
 

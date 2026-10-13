@@ -36,6 +36,8 @@ async function widget(initial: CreditSnapshot, compact = false) {
   let settingChanged: (enabled: boolean) => void = () => {};
   let failSetting = false;
   let savedSetting = false;
+  let creditsChanged: (snapshot: CreditSnapshot) => void = () => {};
+  let delayedCredits: Promise<CreditSnapshot> | undefined;
   const document = Object.assign(new Element(), {
     body: new Element(), documentElement: new Element(), createElement: () => new Element(),
   });
@@ -46,7 +48,8 @@ async function widget(initial: CreditSnapshot, compact = false) {
         primary: { used_percent: 10, resets_at: Date.now() / 1000 + 3600 },
         secondary: compact ? null : { used_percent: 20, resets_at: Date.now() / 1000 + 7200 },
       } }),
-      latestCredits: async () => { if (fail) throw new Error("Offline"); return credits; },
+      latestCredits: async () => { if (fail) throw new Error("Offline"); return delayedCredits ?? credits; },
+      onCreditsChanged(callback: (snapshot: CreditSnapshot) => void) { creditsChanged = callback; },
       automaticallyUseResets: async () => savedSetting,
       setAutomaticallyUseResets: async (enabled: boolean) => {
         if (failSetting) throw new Error("Setting unavailable");
@@ -62,6 +65,8 @@ async function widget(initial: CreditSnapshot, compact = false) {
   await runInContext("refresh()", context);
   await runInContext("refreshCredits()", context);
   return {
+    pushCredits: (snapshot: CreditSnapshot) => { credits = snapshot; creditsChanged(snapshot); },
+    delayedRefresh: (promise: Promise<CreditSnapshot>) => { delayedCredits = promise; return runInContext("refreshCredits()", context); },
     toggle: document.querySelector("#auto-reset-toggle"),
     settingChanged,
     setToggle: async (enabled: boolean, reject = false) => {
@@ -77,7 +82,7 @@ async function widget(initial: CreditSnapshot, compact = false) {
   };
 }
 
-for (const status of ["auth_required", "unavailable", "error"] as const) {
+for (const status of ["auth_required", "access_denied", "unavailable", "error"] as const) {
   test(`hides credit bars and shrinks when analytics are ${status}`, async () => {
     const view = await widget({ status, days: [] });
     expect(view.section.hidden).toBe(true);
@@ -116,4 +121,23 @@ test("widget switch saves changes, follows menu changes, and rolls back failed r
   await view.setToggle(true, true);
   expect(view.toggle.checked).toBe(false);
   expect(view.toggle.disabled).toBe(false);
+});
+
+test("access revocation immediately clears bars and ignores an older response; restored access returns the chart", async () => {
+  const ready: CreditSnapshot = { status: "ready", days: [] };
+  const view = await widget(ready, true);
+  let resolve!: (snapshot: CreditSnapshot) => void;
+  const pending = view.delayedRefresh(new Promise<CreditSnapshot>(r => { resolve = r; }));
+  view.pushCredits({ status: "access_denied", days: [], account: { email: "viewer@example.com" } });
+  expect(view.section.hidden).toBe(true);
+  expect(view.chart.children).toHaveLength(0);
+  expect(view.height()).toBe(154);
+  resolve(ready);
+  await pending;
+  expect(view.section.hidden).toBe(true);
+  expect(view.chart.children).toHaveLength(0);
+  view.pushCredits(ready);
+  expect(view.section.hidden).toBe(false);
+  expect(view.chart.children).toHaveLength(7);
+  expect(view.height()).toBe(266);
 });

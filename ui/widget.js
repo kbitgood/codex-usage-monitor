@@ -9,6 +9,7 @@ let creditsVisible = false;
 let baseWidgetHeight = fullWidgetHeight - creditsSectionHeight;
 let compactLayout = false;
 let creditsTimer;
+let creditsRequestVersion = 0;
 
 function scaleWidget() {
   const scale = Math.min(
@@ -114,6 +115,11 @@ function renderWindow(name, limit) {
   element.querySelector("time").dateTime = reset.toISOString();
 }
 
+window.codexMonitor.onCreditsChanged(snapshot => {
+  creditsRequestVersion += 1;
+  applyCreditSnapshot(snapshot);
+});
+
 function applyCreditSnapshot(snapshot) {
   if (snapshot.status === "ready") renderCredits(snapshot);
   else setCreditsVisible(false);
@@ -121,10 +127,13 @@ function applyCreditSnapshot(snapshot) {
 }
 
 async function refreshCredits() {
+  const version = ++creditsRequestVersion;
   try {
     const snapshot = await window.codexMonitor.latestCredits();
+    if (version !== creditsRequestVersion) return;
     applyCreditSnapshot(snapshot);
   } catch {
+    if (version !== creditsRequestVersion) return;
     setCreditsVisible(false);
     scheduleCreditsRefresh(creditsRefreshMilliseconds);
   }

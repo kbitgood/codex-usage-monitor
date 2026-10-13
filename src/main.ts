@@ -6,17 +6,16 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildCreditsDataUrl,
   buildCreditsPageUrl,
   parseCodexAdminIdentity,
-  parseCreditDays,
+  fetchCreditSnapshot,
   type CodexAdminIdentity,
 } from "./credits";
 import { exhaustedWindowKey } from "./auto-reset";
 import { consumeBankedReset, readCurrentSnapshot, readLiveRateLimits } from "./usage";
 import type { CreditSnapshot, MonitorSnapshot, RateLimitWindow } from "./types";
 
-const { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } = electron;
+const { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray, session } = electron;
 const appName = "Codex Monitor";
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const appIconPath = join(currentDirectory, "../assets/codex-monitor.png");
@@ -42,10 +41,16 @@ interface Preferences {
   widgetWidth?: number;
   automaticallyUseResets?: boolean;
   automaticResetAttemptKey?: string;
+  analyticsSignedOut?: boolean;
 }
 
 let mainWindow: Window | undefined;
 let adminWindow: Window | undefined;
+let creditLoginPending = false;
+let analyticsSignedOut = false;
+let analyticsGeneration = 0;
+let analyticsLoggingOut = false;
+let creditIntroductionWindow: Window | undefined;
 let tray: StatusTray | undefined;
 let usageSnapshot: MonitorSnapshot | undefined;
 let usageRead: Promise<MonitorSnapshot | undefined> | undefined;
@@ -222,6 +227,7 @@ async function setAutomaticallyUseResets(enabled: boolean): Promise<void> {
 async function loadPreferences(): Promise<void> {
   try {
     const stored = JSON.parse(await readFile(preferencesPath(), "utf8")) as Preferences;
+    analyticsSignedOut = stored.analyticsSignedOut === true;
     if (typeof stored.alwaysOnTop === "boolean") alwaysOnTop = stored.alwaysOnTop;
     if (typeof stored.hideFromDock === "boolean") hideFromDock = stored.hideFromDock;
     if (typeof stored.showPercentageLeftInMenuBar === "boolean") {
@@ -248,7 +254,7 @@ async function savePreferences(): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const preferences = {
     alwaysOnTop, hideFromDock, showPercentageLeftInMenuBar, widgetWidth,
-    automaticallyUseResets, automaticResetAttemptKey,
+    automaticallyUseResets, automaticResetAttemptKey, analyticsSignedOut,
   };
   await writeFile(path, `${JSON.stringify(preferences, null, 2)}\n`, "utf8");
 }
@@ -285,15 +291,19 @@ async function getAdminWindow(identity: CodexAdminIdentity): Promise<Window> {
     },
   });
 
-  adminWindow.on("close", (event) => {
-    if (isQuitting) return;
-    event.preventDefault();
-    adminWindow?.hide();
+  const window = adminWindow;
+  window.on("closed", () => {
+    if (adminWindow === window) {
+      adminWindow = undefined;
+      creditLoginPending = false;
+    }
   });
+  window.webContents.on("did-finish-load", checkCreditLogin);
+  window.webContents.on("did-navigate-in-page", checkCreditLogin);
 
   adminWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   await adminWindow.loadURL(buildCreditsPageUrl(identity));
-  return adminWindow;
+  return window;
 }
 
 function isAdminCreditsPage(window: Window, identity: CodexAdminIdentity): boolean {
@@ -314,86 +324,74 @@ function isAdminPage(window: Window): boolean {
   }
 }
 
-async function readCredits(): Promise<CreditSnapshot> {
+function checkCreditLogin(): void {
+  if (!creditLoginPending || !adminWindow?.isVisible() || !isAdminPage(adminWindow)) return;
+  void getLatestCredits();
+}
+
+async function readCredits(generation: number): Promise<CreditSnapshot> {
+  if (analyticsSignedOut || generation !== analyticsGeneration) return { status: "auth_required", days: [] };
   const identity = await readAdminIdentity();
   if (!identity) {
     return { status: "unavailable", days: [], message: "Codex login not found" };
   }
 
-  try {
-    const window = await getAdminWindow(identity);
-    if (!isAdminPage(window)) {
-      return { status: "auth_required", days: [] };
-    }
-
-    const dataUrl = buildCreditsDataUrl(identity);
-    const result = await window.webContents.executeJavaScript(`
-      (async () => {
-        try {
-          const tenantKey = Object.keys(localStorage).find((key) =>
-            key.startsWith("admin-portal:csr-active-tenant:"),
-          );
-          const tenantId = tenantKey ? localStorage.getItem(tenantKey) : null;
-          if (!tenantId) {
-            return { status: 403, contentType: "", payload: null };
-          }
-          const response = await fetch(${JSON.stringify(dataUrl)}, {
-            credentials: "include",
-            headers: {
-              "accept": "application/json",
-              "x-admin-portal-client": "csr",
-              "x-admin-portal-tenant": tenantId,
-              "x-admin-portal-user": ${JSON.stringify(identity.userId)},
-              "x-admin-portal-workspace-id": ${JSON.stringify(identity.workspaceId)}
-            }
-          });
-          const contentType = response.headers.get("content-type") || "";
-          return {
-            status: response.status,
-            contentType,
-            payload: contentType.includes("application/json") ? await response.json() : null
-          };
-        } catch (error) {
-          return { status: 0, contentType: "", payload: null, message: String(error) };
-        }
-      })()
-    `, true) as {
-      status: number;
-      contentType: string;
-      payload: unknown;
-      message?: string;
-    };
-
-    if (result.status === 401 || result.status === 403 || !result.contentType.includes("json")) {
-      return { status: "auth_required", days: [] };
-    }
-    if (result.status !== 200) {
-      return { status: "error", days: [], message: `Credits request failed (${result.status})` };
-    }
-
-    return {
-      status: "ready",
-      days: parseCreditDays(result.payload),
-      updatedAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    return {
-      status: "error",
-      days: [],
-      message: error instanceof Error ? error.message : "Credits request failed",
-    };
-  }
+  if (analyticsSignedOut || generation !== analyticsGeneration) return { status: "auth_required", days: [] };
+  const browserSession = session.fromPartition(adminPartition);
+  return fetchCreditSnapshot(identity, (url, options) => browserSession.fetch(url, options));
 }
 
 async function connectCredits(): Promise<void> {
+  if (creditIntroductionWindow && !creditIntroductionWindow.isDestroyed()) {
+    creditIntroductionWindow.show();
+    creditIntroductionWindow.focus();
+    return;
+  }
+  const window = new BrowserWindow({
+    width: 490,
+    height: 600,
+    useContentSize: true,
+    minWidth: 490,
+    minHeight: 200,
+    resizable: false,
+    show: false,
+    title: "Connect credit analytics",
+    icon: appIconPath,
+    autoHideMenuBar: true,
+    maximizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: join(currentDirectory, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  creditIntroductionWindow = window;
+  window.on("closed", () => {
+    if (creditIntroductionWindow === window) creditIntroductionWindow = undefined;
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  await window.loadFile(join(currentDirectory, "../ui/connect.html"));
+}
+
+async function beginCreditLogin(): Promise<void> {
+  if (analyticsLoggingOut) throw new Error("Logout is still in progress");
+  analyticsSignedOut = false;
+  analyticsGeneration += 1;
+  creditsRead = undefined;
+  await savePreferences();
   const identity = await readAdminIdentity();
-  if (!identity) return;
+  if (!identity) throw new Error("Codex login not found");
   const window = await getAdminWindow(identity);
   if (!isAdminCreditsPage(window, identity)) {
     await window.loadURL(buildCreditsPageUrl(identity));
   }
+  creditLoginPending = true;
   window.show();
   window.focus();
+  creditIntroductionWindow?.close();
+  checkCreditLogin();
 }
 
 async function getLatestUsage(force = false): Promise<MonitorSnapshot | undefined> {
@@ -432,13 +430,30 @@ async function maybeAutomaticallyUseReset(): Promise<void> {
 }
 
 async function getLatestCredits(): Promise<CreditSnapshot> {
-  creditsRead ??= readCredits().finally(() => {
-    creditsRead = undefined;
-  });
+  const generation = analyticsGeneration;
+  if (!creditsRead) {
+    const pending = readCredits(generation).finally(() => {
+      if (creditsRead === pending) creditsRead = undefined;
+    });
+    creditsRead = pending;
+  }
+  const snapshot = await creditsRead;
+  if (generation !== analyticsGeneration) return creditSnapshot ?? { status: "auth_required", days: [] };
   const hadCredits = creditSnapshot?.status === "ready";
-  creditSnapshot = await creditsRead;
+  if (snapshot.status === "access_denied" && !snapshot.account) snapshot.account = creditSnapshot?.account;
+  creditSnapshot = snapshot;
   if (hadCredits !== (creditSnapshot.status === "ready")) resizeWidgetForLayout();
   updateTrayMenu();
+  mainWindow?.webContents.send("credits:changed", creditSnapshot);
+  if (creditLoginPending && (creditSnapshot.status === "ready"
+    || (creditSnapshot.status === "access_denied" && creditSnapshot.account))) {
+    creditLoginPending = false;
+    const window = adminWindow;
+    adminWindow = undefined;
+    window?.destroy();
+    showWindow();
+    mainWindow?.webContents.send("monitor:refresh");
+  }
   return creditSnapshot;
 }
 
@@ -456,12 +471,60 @@ function createTray(): void {
   updateTrayMenu();
 }
 
+async function logOutCreditAnalytics(): Promise<void> {
+  if (analyticsLoggingOut) return;
+  analyticsLoggingOut = true;
+  analyticsSignedOut = true;
+  analyticsGeneration += 1;
+  creditLoginPending = false;
+  creditsRead = undefined;
+  creditSnapshot = { status: "auth_required", days: [] };
+  const window = adminWindow;
+  adminWindow = undefined;
+  window?.destroy();
+  resizeWidgetForLayout();
+  updateTrayMenu();
+  mainWindow?.webContents.send("monitor:refresh");
+  try {
+    const browserSession = session.fromPartition(adminPartition);
+    await browserSession.closeAllConnections();
+    await browserSession.clearData();
+    await browserSession.clearAuthCache();
+    browserSession.flushStorageData();
+    await savePreferences();
+  } finally {
+    analyticsLoggingOut = false;
+    updateTrayMenu();
+  }
+}
+
+function analyticsAccountMenuItems(): Electron.MenuItemConstructorOptions[] {
+  const account = creditSnapshot?.account;
+  const accessDenied = creditSnapshot?.status === "access_denied";
+  return [
+    ...(account ? [
+      { label: "Analytics account: " + account.email, enabled: false },
+    ] : []),
+    ...(accessDenied ? [{ label: "This account cannot access credit analytics", enabled: false }] : []),
+    ...(account || accessDenied ? [
+      { label: "Log out of credit analytics", enabled: !analyticsLoggingOut,
+        click: () => void logOutCreditAnalytics().catch(error => console.error("Could not clear analytics login", error)) },
+    ] : []),
+    ...(creditSnapshot?.status === "ready" || accessDenied ? [] : [
+      { label: analyticsLoggingOut ? "Logging out…" : "Connect credit analytics",
+        enabled: !analyticsLoggingOut && creditSnapshot?.status !== "unavailable",
+        click: () => void connectCredits() },
+    ]),
+  ];
+}
+
 function configureApplicationMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {
       label: appName,
       submenu: [
         { role: "about", label: `About ${appName}` },
+        ...analyticsAccountMenuItems(),
         { type: "separator" },
         { role: "hide", label: `Hide ${appName}` },
         { role: "hideOthers" },
@@ -476,6 +539,7 @@ function configureApplicationMenu(): void {
 }
 
 function updateTrayMenu(): void {
+  configureApplicationMenu();
   if (!tray) return;
   const topLimit = usageSnapshot?.rateLimits.primary ?? usageSnapshot?.rateLimits.secondary;
   const remainingPercent = topLimit
@@ -495,13 +559,7 @@ function updateTrayMenu(): void {
       ])
     : [{ label: "Usage unavailable", enabled: false }];
   const paidCredits = formatPaidCredits(creditSnapshot);
-  const adminLoginItems: Electron.MenuItemConstructorOptions[] = creditSnapshot?.status === "ready"
-    ? []
-    : [{
-        label: "Login with Admin Account",
-        enabled: creditSnapshot?.status !== "unavailable",
-        click: () => void connectCredits(),
-      }];
+  const adminLoginItems = analyticsAccountMenuItems();
   const startAtLogin = isStartAtLoginEnabled();
 
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -692,6 +750,22 @@ ipcMain.handle("settings:set-auto-resets", async (event, enabled: unknown) => {
   return automaticallyUseResets;
 });
 ipcMain.handle("credits:latest", getLatestCredits);
+ipcMain.on("credits:fit-introduction", (event, height: unknown) => {
+  const window = creditIntroductionWindow;
+  if (!window || event.sender !== window.webContents || typeof height !== "number"
+    || !Number.isFinite(height) || height < 200 || height > 1400) return;
+  window.setContentSize(490, Math.ceil(height));
+  if (!window.isVisible()) window.show();
+});
+ipcMain.handle("credits:begin-login", async (event) => {
+  if (event.sender !== creditIntroductionWindow?.webContents) {
+    throw new Error("Credit login must start from the introduction");
+  }
+  await beginCreditLogin();
+});
+ipcMain.on("credits:dismiss-introduction", (event) => {
+  if (event.sender === creditIntroductionWindow?.webContents) creditIntroductionWindow?.close();
+});
 ipcMain.on("window:hide", hideWindow);
 ipcMain.on("window:set-compact", (_event, compact: unknown) => {
   if (typeof compact === "boolean") setCompactWidget(compact);
@@ -707,7 +781,10 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
   void refreshAll();
-  setInterval(() => void getLatestUsage(), usageRefreshMilliseconds);
+  setInterval(() => {
+    void getLatestUsage();
+    checkCreditLogin();
+  }, usageRefreshMilliseconds);
   setInterval(() => void getLatestCredits(), creditsRefreshMilliseconds);
 });
 

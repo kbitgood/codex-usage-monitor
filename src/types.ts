@@ -51,8 +51,9 @@ export interface CreditDay {
 }
 
 export interface CreditSnapshot {
-  status: "ready" | "auth_required" | "unavailable" | "error";
+  status: "ready" | "auth_required" | "access_denied" | "unavailable" | "error";
   days: CreditDay[];
+  account?: { email: string; name?: string };
   updatedAt?: string;
   message?: string;
 }

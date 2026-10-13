@@ -1,8 +1,96 @@
-import type { CreditDay } from "./types";
+import type { CreditDay, CreditSnapshot } from "./types";
+
+export function parseAnalyticsAccount(payload: unknown): CreditSnapshot["account"] {
+  const source = payload as { user?: { email?: unknown; name?: unknown }; actor?: { email?: unknown; name?: unknown } } | null;
+  const user = source?.actor ?? source?.user;
+  if (typeof user?.email !== "string" || !user.email.trim()) return undefined;
+  return { email: user.email.trim(), ...(typeof user.name === "string" ? { name: user.name } : {}) };
+}
 
 export interface CodexAdminIdentity {
   workspaceId: string;
   userId: string;
+}
+
+export interface AnalyticsRequestOptions {
+  credentials: "include";
+  redirect: "manual";
+  cache: "no-store";
+  headers: Record<string, string>;
+  signal: AbortSignal;
+}
+
+export type AnalyticsFetcher = (url: string, options: AnalyticsRequestOptions) => Promise<{
+  status: number;
+  headers: { get(name: string): string | null };
+  json(): Promise<unknown>;
+}>;
+
+export async function fetchCreditSnapshot(
+  identity: CodexAdminIdentity,
+  fetcher: AnalyticsFetcher,
+  now = new Date(),
+): Promise<CreditSnapshot> {
+  let account: CreditSnapshot["account"];
+  const readJson = async (url: string, headers: Record<string, string>) => {
+    const response = await fetcher(url, {
+      credentials: "include",
+      redirect: "manual",
+      cache: "no-store",
+      headers: { accept: "application/json", ...headers },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status === 403) return { accessDenied: true };
+    if (response.status === 401
+      || (response.status >= 300 && response.status < 400)) return { authRequired: true };
+    if (response.status !== 200) throw new Error(`Analytics request failed (${response.status})`);
+    if (!response.headers.get("content-type")?.includes("application/json")) return { authRequired: true };
+    return { payload: await response.json() };
+  };
+  try {
+    const bootstrapUrl = new URL("https://admin.openai.com/api/csr/bootstrap");
+    bootstrapUrl.searchParams.set("workspace_id", identity.workspaceId);
+    bootstrapUrl.searchParams.set("workspace_directory", "deferred");
+    const bootstrap = await readJson(bootstrapUrl.toString(), {});
+    if (bootstrap.accessDenied) return { status: "access_denied", days: [], message: "This account cannot access credit analytics" };
+    if (bootstrap.authRequired) return { status: "auth_required", days: [] };
+    account = parseAnalyticsAccount(bootstrap.payload);
+    const details = bootstrap.payload as {
+      user?: { id?: unknown; currentTenantId?: unknown; canShowCreditAnalytics?: unknown };
+      actor?: { id?: unknown };
+      tenant?: { id?: unknown };
+      scope?: { workspaceId?: unknown };
+      roleCapabilities?: { admin?: unknown; owner?: unknown; analytics?: unknown; codexAnalytics?: unknown };
+    } | null;
+    const user = details?.user;
+    if (user?.canShowCreditAnalytics === false) {
+      return { status: "access_denied", days: [], account, message: "This account cannot access credit analytics" };
+    }
+    const userId = details?.actor?.id ?? user?.id;
+    const tenantId = details?.tenant?.id ?? user?.currentTenantId;
+    if (typeof userId !== "string" || !userId || typeof tenantId !== "string" || !tenantId) {
+      return { status: "auth_required", days: [], account };
+    }
+    if (details?.scope?.workspaceId !== identity.workspaceId) {
+      throw new Error("Analytics permission response belongs to a different workspace");
+    }
+    const permissions = details?.roleCapabilities;
+    if (!permissions) throw new Error("Could not verify analytics permissions");
+    if (![permissions.admin, permissions.owner, permissions.analytics, permissions.codexAnalytics].some(value => value === true)) {
+      return { status: "access_denied", days: [], account, message: "This account cannot access credit analytics" };
+    }
+    const credits = await readJson(buildCreditsDataUrl(identity, now), {
+      "x-admin-portal-client": "csr",
+      "x-admin-portal-tenant": tenantId,
+      "x-admin-portal-user": userId,
+      "x-admin-portal-workspace-id": identity.workspaceId,
+    });
+    if (credits.accessDenied) return { status: "access_denied", days: [], account, message: "This account cannot access credit analytics" };
+    if (credits.authRequired) return { status: "auth_required", days: [], account };
+    return { status: "ready", days: parseCreditDays(credits.payload), account, updatedAt: now.toISOString() };
+  } catch (error) {
+    return { status: "error", days: [], account, message: error instanceof Error ? error.message : "Credits request failed" };
+  }
 }
 
 interface CreditPointPayload {

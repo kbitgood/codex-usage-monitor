@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'" />
+    <title>Connect credit analytics</title>
+    <link rel="stylesheet" href="./connect.css" />
+  </head>
+  <body>
+    <main>
+      <h1>See your credit usage</h1>
+      <figure class="analytics-preview">
+        <picture>
+          <source srcset="../assets/screenshots/analytics-preview-dark.jpg" media="(prefers-color-scheme: dark)" />
+          <img src="../assets/screenshots/analytics-preview-light.jpg" width="340" height="115" alt="Example of the paid Codex credits chart with sample usage for seven days." />
+        </picture>
+      </figure>
+      <p>Connect your workspace analytics to show your actual Codex credit usage from the last seven days, right in the monitor.</p>
+      <section class="access" aria-labelledby="access-title">
+        <h2 id="access-title">Who can connect?</h2>
+        <p>Use an OpenAI workspace account with permission to view credit analytics, such as an owner, admin, or analytics viewer.</p>
+      </section>
+      <p class="privacy">You’ll sign in on OpenAI’s page in the next window. Your login session stays on this Mac so the monitor can refresh your credit usage. The monitor doesn’t store your password.</p>
+      <button class="login" id="login" type="button"><span>Log in with ChatGPT</span><span aria-hidden="true">→</span></button>
+      <p class="error" id="error" role="alert" hidden></p>
+      <button class="later" id="later" type="button">Not now</button>
+    </main>
+    <script src="./connect.js"></script>
+  </body>
+</html>
